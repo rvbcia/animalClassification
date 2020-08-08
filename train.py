@@ -26,6 +26,8 @@ import pickle
 import cv2
 import os
 
+from keras.callbacks import ModelCheckpoint, LearningRateScheduler, TensorBoard, EarlyStopping
+
 # construct the argument parser and parse the arguments
 ap = argparse.ArgumentParser()
 ap.add_argument("-d", "--dataset", required=True,
@@ -135,6 +137,21 @@ opt = SGD(lr=1e-4, momentum=0.9, decay=1e-4 / args["epochs"])
 model.compile(loss="categorical_crossentropy", optimizer=opt,
 	metrics=["accuracy"])
 
+
+# early stopping and checkpoints
+earlystop = EarlyStopping(patience=5)
+checkpoint_filepath = '/model/checkpoints/'
+
+model_checkpoint_callback = ModelCheckpoint(
+    filepath=checkpoint_filepath,
+    save_weights_only=True,
+    monitor='val_acc',
+    mode='max',
+    save_best_only=True)
+
+
+#callbacks = [earlystop]
+
 # train the head of the network for a few epochs (all other layers
 # are frozen) -- this will allow the new FC layers to start to become
 # initialized with actual "learned" values versus pure random
@@ -144,7 +161,11 @@ H = model.fit(
 	steps_per_epoch=len(trainX) // 32,
 	validation_data=valAug.flow(testX, testY),
 	validation_steps=len(testX) // 32,
-	epochs=args["epochs"])
+	epochs=args["epochs"],
+	callbacks=[earlystop, model_checkpoint_callback])
+
+# The model weights (that are considered the best) are loaded into the model.
+model.load_weights(checkpoint_filepath)
 
 # evaluate the network
 print("[INFO] evaluating network...")
